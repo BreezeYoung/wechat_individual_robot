@@ -3,11 +3,13 @@ import itchat
 from itchat.content import *
 import datetime
 import time
-import json, requests  # , urllib.request
+import json, requests
 import urllib.request as urllib2
 import urllib.parse
 import gzip
 from city import city
+import os
+
 
 sendCont_list = []
 sendTime_list = []
@@ -16,11 +18,15 @@ Help_msg = """尊敬的%s先生/女士您好，
 输入help或帮助或？可查询相关指令
 输入 weather+城市名 可查询当前天气状况
 输入 timing+时间+内容 可在指定时间向您发送指定内容
-输入 datetime 可查询当前日期时间"""
+输入 datetime 可查询当前日期时间
+输入 robot 可进入图灵机器人对话模式(本模式会阻塞其他功能)"""
 
+Turing_key = 'ba95e86a8cf340bda4f1fabf0e1d4e0a'
+Turing_robot_mode = False
 
 @itchat.msg_register(TEXT)
 def auto_reply(msg):
+    global Turing_robot_mode
     user = itchat.search_friends(userName=msg['FromUserName'])
     if msg['ToUserName'] == 'filehelper':
         user['UserName'] = 'filehelper'
@@ -28,14 +34,33 @@ def auto_reply(msg):
         itchat.send(Help_msg % user['NickName'], toUserName=user['UserName'])
         print('done')
 
-    if 'weather' in msg['Text']:
-        content = detailedWeather(msg['Text'])
-        itchat.send(content, toUserName=user['UserName'])
-    elif 'datetime' in msg['Text']:
-        itchat.send(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), toUserName=user['UserName'])
-    elif 'timing' in msg['Text']:
-        timingSend(msg['Text'], user['UserName'])
-        itchat.send(u'设定完毕', toUserName=user['UserName'])
+    if Turing_robot_mode:
+        m_text = msg['Text']
+        if m_text == u'退出' or m_text == 'quit':
+            Turing_robot_mode = False
+            itchat.send(u'已退出图灵机器人对话模式', toUserName=user['UserName'])
+        else:
+            reply = getResponse(m_text)
+            if reply:
+                itchat.send(u'RobotBr：' + reply, toUserName=user['UserName'])
+            else:
+                itchat.send(u'对话失败', toUserName=user['UserName'])
+    else:
+        if 'weather' in msg['Text']:
+            content = detailedWeather(msg['Text'])
+            itchat.send(content, toUserName=user['UserName'])
+        elif 'datetime' in msg['Text']:
+            itchat.send(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), toUserName=user['UserName'])
+        elif 'timing' in msg['Text']:
+            timingSend(msg['Text'], user['UserName'])
+            itchat.send(u'设定完毕', toUserName=user['UserName'])
+        elif 'robot' == msg['Text']:
+            Turing_robot_mode = True
+            itchat.send(u'温馨提示：输入 退出或者quit 可退出图灵机器人对话模式', toUserName=user['UserName'])
+
+
+
+
 
 # this is based on "http://www.weather.com.cn/"
 def getWeather(content):
@@ -61,6 +86,20 @@ def getWeather(content):
             return str_temp
         except:
             return u'获得天气情况失败！'
+
+
+def getResponse(msg):
+    apiUrl = 'http://www.tuling123.com/openapi/api'
+    data = {
+        'key': Turing_key,
+        'info': msg,
+        'userid': 'wechat-robot',
+    }
+    try:
+        res = requests.post(apiUrl, data=data).json()
+        return res.get('text')
+    except:
+        return
 
 
 def detailedWeather(content):
@@ -134,3 +173,4 @@ while(1):
             sendUser_list.pop(i)
             sendCont_list.pop(i)
             sendTime_list.pop(i)
+
